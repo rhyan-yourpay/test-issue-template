@@ -1,0 +1,161 @@
+name: Bug report
+description: Report a crash, incorrect behavior, or UI issue
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Fill out the sections below so we can reproduce and fix the issue quickly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What went wrong? Summarize the problem clearly.
+      placeholder: e.g. The app crashes when confirming a biometric payment on Android.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide numbered steps that reliably reproduce the issue.
+      placeholder: |
+        1. Open the app and sign in
+        2. Navigate to ...
+        3. Tap ...
+        4. Observe the issue
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+      placeholder: e.g. Payment confirms successfully and returns to the home screen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened?
+      placeholder: e.g. The app freezes for a few seconds, then crashes to the home screen.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where did you observe the bug?
+      options:
+        - Android
+        - iOS
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: App version name (e.g. from About / Settings or the store listing).
+      placeholder: e.g. 3.2.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Which build/environment were you using?
+      options:
+        - Production
+        - Beta
+        - Alpha
+        - Development
+    validations:
+      required: true
+
+  - type: input
+    id: device-os
+    attributes:
+      label: Device / OS
+      description: Device model and OS version.
+      placeholder: e.g. iPhone 15 / iOS 18.2 or Pixel 8 / Android 15
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is the impact?
+      options:
+        - Crash
+        - Blocker
+        - Major
+        - Minor
+        - Cosmetic
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      description: How often does this happen?
+      options:
+        - Always
+        - Often
+        - Sometimes
+        - Once
+    validations:
+      required: false
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots / video
+      description: Attach screenshots or screen recordings, or paste links here.
+      placeholder: Drag and drop files above, or paste links.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Crashlytics / Sentry
+      description: Paste a stack trace, Crashlytics/Sentry issue ID or URL, or relevant log snippets.
+      placeholder: |
+        Crashlytics issue ID: ...
+        Or paste stack trace / logs here
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: related-links
+    attributes:
+      label: Jira / related links
+      description: Optional Jira ticket, related PR, or other reference.
+      placeholder: e.g. https://jira.example.com/browse/YP-1234
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I reproduced this on the latest available build for this environment
+          required: false
+        - label: I searched existing issues and did not find a duplicate
+          required: false
