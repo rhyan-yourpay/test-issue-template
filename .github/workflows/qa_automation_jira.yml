@@ -1,0 +1,374 @@
+# QA Automation Request ↔ Jira Sub-task
+#
+# Prerequisites (repo settings / Atlassian):
+#   - Secrets: JIRA_BASE_URL, JIRA_USER, JIRA_API_TOKEN
+#     (JIRA_BASE_URL e.g. https://yourpay-project.atlassian.net — no trailing slash)
+#   - GitHub label: qa-automation (create in Issues → Labels if missing)
+#   - Parent umbrella: FE-46 (all QA automation sub-tasks are created under this task)
+#   - Optional: install "GitHub for Jira" so branches/commits/PRs appear on the Jira
+#     Development panel when the key (e.g. FE-123) is in the branch or PR title
+#
+# Triggers:
+#   - Label `qa-automation` on an issue → create Jira Sub-task under FE-46
+#   - GitHub issue closed → transition linked Jira issue to Done
+#   - PR merged with FE-xxx in title/body/branch (or Fixes #N linking a QA issue) → Done
+#
+# Dev convention: include the Jira key in branch and PR titles, e.g.
+#   FE-123-add-country-selector-resource-id
+
+name: QA Automation Jira
+
+on:
+  issues:
+    types: [labeled, closed]
+  pull_request:
+    types: [closed]
+
+permissions:
+  issues: write
+  pull-requests: read
+  contents: read
+
+env:
+  JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+  JIRA_USER: ${{ secrets.JIRA_USER }}
+  JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+  JIRA_PARENT_KEY: FE-46
+  JIRA_PROJECT_KEY: FE
+
+jobs:
+  create-jira:
+    name: Create Jira sub-task
+    if: >
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'qa-automation'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Jira sub-task under FE-46
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_USER:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+            echo "::error::Missing JIRA_BASE_URL, JIRA_USER, or JIRA_API_TOKEN secret"
+            exit 1
+          fi
+
+          JIRA_BASE_URL="${JIRA_BASE_URL%/}"
+          AUTH=$(printf '%s:%s' "$JIRA_USER" "$JIRA_API_TOKEN" | base64 | tr -d '\n')
+
+          # Idempotency: skip if issue already linked to a Jira key
+          EXISTING=""
+          if printf '%s' "${ISSUE_BODY:-}" | grep -qE '<!-- jira:FE-[0-9]+ -->'; then
+            EXISTING=$(printf '%s' "$ISSUE_BODY" | grep -oE '<!-- jira:FE-[0-9]+ -->' | head -1 | grep -oE 'FE-[0-9]+')
+          fi
+          if [ -z "$EXISTING" ]; then
+            COMMENTS=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" --paginate -q '.[].body' 2>/dev/null || true)
+            EXISTING=$(printf '%s' "$COMMENTS" | grep -oE 'Jira ticket created: FE-[0-9]+' | head -1 | grep -oE 'FE-[0-9]+' || true)
+          fi
+          if [ -n "$EXISTING" ]; then
+            echo "Issue already linked to $EXISTING — skipping create"
+            exit 0
+          fi
+
+          export FEATURE SCREEN ELEMENT_NAME ELEMENT_DESC NOTES
+          FEATURE=$(python3 -c '
+          import os, re
+          body = os.environ.get("ISSUE_BODY") or ""
+          label = "Feature / Flow"
+          m = re.search(rf"###\s*{re.escape(label)}\s*\n+(.*?)(?=\n###\s|\Z)", body, re.S | re.I)
+          text = (m.group(1).strip() if m else "")
+          print("" if text.lower() in ("_no response_", "none", "") else text)
+          ')
+          SCREEN=$(python3 -c '
+          import os, re
+          body = os.environ.get("ISSUE_BODY") or ""
+          label = "Screen"
+          m = re.search(rf"###\s*{re.escape(label)}\s*\n+(.*?)(?=\n###\s|\Z)", body, re.S | re.I)
+          text = (m.group(1).strip() if m else "")
+          print("" if text.lower() in ("_no response_", "none", "") else text)
+          ')
+          ELEMENT_NAME=$(python3 -c '
+          import os, re
+          body = os.environ.get("ISSUE_BODY") or ""
+          label = "Element Name"
+          m = re.search(rf"###\s*{re.escape(label)}\s*\n+(.*?)(?=\n###\s|\Z)", body, re.S | re.I)
+          text = (m.group(1).strip() if m else "")
+          print("" if text.lower() in ("_no response_", "none", "") else text)
+          ')
+          ELEMENT_DESC=$(python3 -c '
+          import os, re
+          body = os.environ.get("ISSUE_BODY") or ""
+          label = "Element Description"
+          m = re.search(rf"###\s*{re.escape(label)}\s*\n+(.*?)(?=\n###\s|\Z)", body, re.S | re.I)
+          text = (m.group(1).strip() if m else "")
+          print("" if text.lower() in ("_no response_", "none", "") else text)
+          ')
+          NOTES=$(python3 -c '
+          import os, re
+          body = os.environ.get("ISSUE_BODY") or ""
+          label = "Notes"
+          m = re.search(rf"###\s*{re.escape(label)}\s*\n+(.*?)(?=\n###\s|\Z)", body, re.S | re.I)
+          text = (m.group(1).strip() if m else "")
+          print("" if text.lower() in ("_no response_", "none", "") else text)
+          ')
+
+          python3 <<'PY'
+          import json, os
+
+          def para(text):
+              return {
+                  "type": "paragraph",
+                  "content": [{"type": "text", "text": text or " "}],
+              }
+
+          def heading(text, level=3):
+              return {
+                  "type": "heading",
+                  "attrs": {"level": level},
+                  "content": [{"type": "text", "text": text}],
+              }
+
+          def section(title, value):
+              nodes = [heading(title)]
+              value = value or ""
+              if value.strip():
+                  for line in value.splitlines() or [""]:
+                      nodes.append(para(line if line else " "))
+              else:
+                  nodes.append(para("(none)"))
+              return nodes
+
+          payload = {
+              "fields": {
+                  "project": {"key": os.environ["JIRA_PROJECT_KEY"]},
+                  "parent": {"key": os.environ["JIRA_PARENT_KEY"]},
+                  "summary": os.environ["ISSUE_TITLE"][:255],
+                  "issuetype": {"name": "Sub-task"},
+                  "description": {
+                      "type": "doc",
+                      "version": 1,
+                      "content": [
+                          para(f"GitHub issue: {os.environ['ISSUE_URL']}"),
+                          *section("Feature / Flow", os.environ.get("FEATURE", "")),
+                          *section("Screen", os.environ.get("SCREEN", "")),
+                          *section("Element Name", os.environ.get("ELEMENT_NAME", "")),
+                          *section("Element Description", os.environ.get("ELEMENT_DESC", "")),
+                          *section("Notes", os.environ.get("NOTES", "")),
+                      ],
+                  },
+              }
+          }
+          with open("/tmp/jira_payload.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f)
+          PY
+
+          HTTP_CODE=$(curl -sS -o /tmp/jira_create_response.json -w '%{http_code}' \
+            -X POST "${JIRA_BASE_URL}/rest/api/3/issue" \
+            -H "Authorization: Basic ${AUTH}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/jira_payload.json)
+
+          if [ "$HTTP_CODE" = "400" ]; then
+            # Some Jira Cloud sites use "Subtask" instead of "Sub-task"
+            python3 -c '
+          import json
+          with open("/tmp/jira_payload.json", encoding="utf-8") as f:
+              p = json.load(f)
+          p["fields"]["issuetype"]["name"] = "Subtask"
+          with open("/tmp/jira_payload.json", "w", encoding="utf-8") as f:
+              json.dump(p, f)
+          '
+            HTTP_CODE=$(curl -sS -o /tmp/jira_create_response.json -w '%{http_code}' \
+              -X POST "${JIRA_BASE_URL}/rest/api/3/issue" \
+              -H "Authorization: Basic ${AUTH}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              --data @/tmp/jira_payload.json)
+          fi
+
+          if [ "$HTTP_CODE" != "201" ]; then
+            echo "::error::Jira create failed (HTTP ${HTTP_CODE})"
+            cat /tmp/jira_create_response.json
+            exit 1
+          fi
+
+          JIRA_KEY=$(python3 -c 'import json; print(json.load(open("/tmp/jira_create_response.json", encoding="utf-8"))["key"])')
+          JIRA_BROWSE="${JIRA_BASE_URL}/browse/${JIRA_KEY}"
+          echo "Created ${JIRA_KEY}"
+
+          gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
+            -f body="Jira ticket created: [${JIRA_KEY}](${JIRA_BROWSE})
+
+          > Include \`${JIRA_KEY}\` in branch and PR titles so Jira tracks commits/PRs (and so merge can auto-close this ticket)."
+
+          # Append hidden marker for reliable Done lookups
+          {
+            printf '%s\n\n' "${ISSUE_BODY:-}"
+            printf '<!-- jira:%s -->\n' "$JIRA_KEY"
+          } > /tmp/issue_body_updated.md
+          jq -n --rawfile body /tmp/issue_body_updated.md '{body: $body}' \
+            | gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" -X PATCH --input -
+
+  transition-done:
+    name: Transition Jira to Done
+    if: >
+      (github.event_name == 'issues' && github.event.action == 'closed') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve Jira keys and transition to Done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_USER:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+            echo "::error::Missing JIRA_BASE_URL, JIRA_USER, or JIRA_API_TOKEN secret"
+            exit 1
+          fi
+
+          JIRA_BASE_URL="${JIRA_BASE_URL%/}"
+          AUTH=$(printf '%s:%s' "$JIRA_USER" "$JIRA_API_TOKEN" | base64 | tr -d '\n')
+
+          KEYS_FILE=$(mktemp)
+
+          collect_keys_from_text() {
+            printf '%s' "${1:-}" | grep -oE 'FE-[0-9]+' || true
+          }
+
+          resolve_issue_jira_key() {
+            local num="$1"
+            local body comments key
+            body=$(gh api "repos/${REPO}/issues/${num}" -q .body 2>/dev/null || true)
+            key=$(printf '%s' "$body" | grep -oE '<!-- jira:FE-[0-9]+ -->' | head -1 | grep -oE 'FE-[0-9]+' || true)
+            if [ -z "$key" ]; then
+              comments=$(gh api "repos/${REPO}/issues/${num}/comments" --paginate -q '.[].body' 2>/dev/null || true)
+              key=$(printf '%s' "$comments" | grep -oE 'Jira ticket created: FE-[0-9]+' | head -1 | grep -oE 'FE-[0-9]+' || true)
+            fi
+            if [ -z "$key" ]; then
+              key=$(collect_keys_from_text "$body" | head -1 || true)
+            fi
+            printf '%s' "$key"
+          }
+
+          if [ "$EVENT_NAME" = "issues" ]; then
+            KEY=""
+            if [ -n "${ISSUE_BODY:-}" ]; then
+              KEY=$(printf '%s' "$ISSUE_BODY" | grep -oE '<!-- jira:FE-[0-9]+ -->' | head -1 | grep -oE 'FE-[0-9]+' || true)
+            fi
+            if [ -z "$KEY" ]; then
+              KEY=$(resolve_issue_jira_key "$ISSUE_NUMBER")
+            fi
+            if [ -n "$KEY" ]; then
+              echo "$KEY" >> "$KEYS_FILE"
+            fi
+          else
+            {
+              collect_keys_from_text "${PR_TITLE:-}"
+              collect_keys_from_text "${PR_BODY:-}"
+              collect_keys_from_text "${PR_BRANCH:-}"
+            } >> "$KEYS_FILE"
+
+            LINKED=$(printf '%s' "${PR_BODY:-}" | grep -oiE '(fix(es|ed)?|close[sd]?|resolve[sd]?)[[:space:]]+#([0-9]+)' | grep -oE '[0-9]+' || true)
+            for num in $LINKED; do
+              LABELS=$(gh api "repos/${REPO}/issues/${num}" -q '.labels[].name' 2>/dev/null || true)
+              if printf '%s' "$LABELS" | grep -qx 'qa-automation'; then
+                K=$(resolve_issue_jira_key "$num")
+                if [ -n "$K" ]; then
+                  echo "$K" >> "$KEYS_FILE"
+                fi
+              fi
+            done
+          fi
+
+          UNIQUE_KEYS=$(sort -u "$KEYS_FILE" | grep -E '^FE-[0-9]+$' || true)
+          if [ -z "$UNIQUE_KEYS" ]; then
+            echo "No Jira keys found — nothing to transition"
+            exit 0
+          fi
+
+          transition_to_done() {
+            local key="$1"
+            local transition_id status_name category HTTP_CODE
+
+            HTTP_CODE=$(curl -sS -o /tmp/jira_issue.json -w '%{http_code}' \
+              -H "Authorization: Basic ${AUTH}" \
+              -H "Accept: application/json" \
+              "${JIRA_BASE_URL}/rest/api/3/issue/${key}?fields=status")
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::warning::Could not fetch ${key} (HTTP ${HTTP_CODE})"
+              return 0
+            fi
+
+            status_name=$(python3 -c 'import json; print(json.load(open("/tmp/jira_issue.json", encoding="utf-8"))["fields"]["status"]["name"])')
+            category=$(python3 -c 'import json; print(json.load(open("/tmp/jira_issue.json", encoding="utf-8"))["fields"]["status"]["statusCategory"]["key"])')
+            if [ "$category" = "done" ]; then
+              echo "${key} already Done (status: ${status_name})"
+              return 0
+            fi
+
+            curl -sS -o /tmp/jira_transitions.json \
+              -H "Authorization: Basic ${AUTH}" \
+              -H "Accept: application/json" \
+              "${JIRA_BASE_URL}/rest/api/3/issue/${key}/transitions"
+
+            transition_id=$(python3 <<'PY'
+          import json
+          data = json.load(open("/tmp/jira_transitions.json", encoding="utf-8"))
+          transitions = data.get("transitions") or []
+          for t in transitions:
+              if t.get("name", "").strip().lower() == "done":
+                  print(t["id"])
+                  raise SystemExit(0)
+          for t in transitions:
+              cat = ((t.get("to") or {}).get("statusCategory") or {}).get("key")
+              if cat == "done":
+                  print(t["id"])
+                  raise SystemExit(0)
+          print("")
+          PY
+            )
+
+            if [ -z "$transition_id" ]; then
+              echo "::warning::No Done transition available for ${key}"
+              cat /tmp/jira_transitions.json
+              return 0
+            fi
+
+            HTTP_CODE=$(curl -sS -o /tmp/jira_transition_response.json -w '%{http_code}' \
+              -X POST "${JIRA_BASE_URL}/rest/api/3/issue/${key}/transitions" \
+              -H "Authorization: Basic ${AUTH}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json" \
+              --data "{\"transition\":{\"id\":\"${transition_id}\"}}")
+
+            if [ "$HTTP_CODE" != "204" ] && [ "$HTTP_CODE" != "200" ]; then
+              echo "::warning::Failed to transition ${key} (HTTP ${HTTP_CODE})"
+              cat /tmp/jira_transition_response.json || true
+              return 0
+            fi
+
+            echo "Transitioned ${key} to Done"
+          }
+
+          for KEY in $UNIQUE_KEYS; do
+            transition_to_done "$KEY"
+          done
