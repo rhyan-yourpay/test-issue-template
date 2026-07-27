@@ -3,9 +3,16 @@ description: Request a resource ID or other Mobile change required for QA automa
 title: "[QA Automation] "
 labels:
   - qa-automation
-  - needs-mobile
-
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Request one UI element change needed for QA automation (1 issue = 1 element).
+        Example title: `[QA Automation] Add resource ID - Country Selector`
+
+        Opening this issue creates a Jira sub-task under FE-46. Include the Jira key
+        (e.g. `FE-123`) in branch and PR titles so development progress links correctly.
+
   - type: input
     id: feature
     attributes:
