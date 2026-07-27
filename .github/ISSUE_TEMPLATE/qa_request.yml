@@ -1,65 +1,67 @@
 name: QA Automation Request
-description: Request resource IDs or other mobile changes required for QA automation
+description: Request a resource ID or other Mobile change required for QA automation
 title: "[QA Automation] "
 labels:
   - qa-automation
   - needs-mobile
+
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Use this template to request resource IDs or other changes required for QA automation.
-
-        Group related requests into a single issue when they belong to the same:
-        - Feature or user flow
-        - QA audit
-        - Automation initiative
-
-        Create a separate issue when the request belongs to a different feature or requires separate tracking.
-
   - type: input
     id: feature
     attributes:
       label: Feature / Flow
-      description: The feature or user flow being requested for automation.
-      placeholder: "e.g. Registration, Login, P2P Transfer"
+      placeholder: "e.g. Onboarding"
+    validations:
+      required: true
+
+  - type: input
+    id: screen
+    attributes:
+      label: Screen
+      placeholder: "e.g. Registration Page 1"
+    validations:
+      required: true
+
+  - type: input
+    id: element_name
+    attributes:
+      label: Element Name
+      placeholder: "e.g. Country Selector"
     validations:
       required: true
 
   - type: textarea
-    id: requests
+    id: element_description
     attributes:
-      label: Automation Requests
-      description: |
-        List the elements that require a resource ID or other Mobile team changes.
+      label: Element Description
+      placeholder: "Describe what this element does."
+    validations:
+      required: true
 
-        For each request, include:
-        - Screen
-        - Element Name
-        - Element Description
-        - Platform
-        - Screenshot, if applicable
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+        - Android and iOS
+    validations:
+      required: true
 
-        Example:
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag and drop a screenshot into this field.
+      placeholder: "Attach a screenshot showing the requested element."
 
-        ### Registration Page 1
-
-        #### Country Selector
-        - Description: Select registration country
-        - Platform: Android
-        - Screenshot: [attach screenshot]
-
-        #### Continue Button
-        - Description: Continue registration
-        - Platform: Android
-        - Screenshot: [attach screenshot]
-      placeholder: |
-        ### Screen Name
-
-        #### Element Name
-        - Description:
-        - Platform:
-        - Screenshot:
+  - type: input
+    id: resource_id
+    attributes:
+      label: Resource ID
+      description: Filled in by the Mobile team.
+      value: TBD
     validations:
       required: true
 
@@ -67,14 +69,4 @@ body:
     id: notes
     attributes:
       label: Notes
-      description: Additional context, expected behavior, or automation requirements.
       placeholder: "Add any additional context here."
-
-  - type: input
-    id: requested_by
-    attributes:
-      label: Requested By
-      description: GitHub username of the QA requester.
-      placeholder: "@username"
-    validations:
-      required: true
