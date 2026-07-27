@@ -10,7 +10,7 @@ body:
     id: feature
     attributes:
       label: Feature / Flow
-      placeholder: "e.g. Onboarding"
+      placeholder: "e.g. Login"
     validations:
       required: true
 
@@ -18,7 +18,7 @@ body:
     id: screen
     attributes:
       label: Screen
-      placeholder: "e.g. Registration Page 1"
+      placeholder: "e.g. Login Page"
     validations:
       required: true
 
@@ -38,32 +38,12 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: platform
-    attributes:
-      label: Platform
-      options:
-        - Android
-        - iOS
-        - Android and iOS
-    validations:
-      required: true
-
   - type: textarea
     id: screenshot
     attributes:
       label: Screenshot
       description: Drag and drop a screenshot into this field.
       placeholder: "Attach a screenshot showing the requested element."
-
-  - type: input
-    id: resource_id
-    attributes:
-      label: Resource ID
-      description: Filled in by the Mobile team.
-      value: TBD
-    validations:
-      required: true
 
   - type: textarea
     id: notes
