@@ -1,0 +1,80 @@
+name: QA Automation Request
+description: Request resource IDs or other mobile changes required for QA automation
+title: "[QA Automation] "
+labels:
+  - qa-automation
+  - needs-mobile
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request resource IDs or other changes required for QA automation.
+
+        Group related requests into a single issue when they belong to the same:
+        - Feature or user flow
+        - QA audit
+        - Automation initiative
+
+        Create a separate issue when the request belongs to a different feature or requires separate tracking.
+
+  - type: input
+    id: feature
+    attributes:
+      label: Feature / Flow
+      description: The feature or user flow being requested for automation.
+      placeholder: "e.g. Registration, Login, P2P Transfer"
+    validations:
+      required: true
+
+  - type: textarea
+    id: requests
+    attributes:
+      label: Automation Requests
+      description: |
+        List the elements that require a resource ID or other Mobile team changes.
+
+        For each request, include:
+        - Screen
+        - Element Name
+        - Element Description
+        - Platform
+        - Screenshot, if applicable
+
+        Example:
+
+        ### Registration Page 1
+
+        #### Country Selector
+        - Description: Select registration country
+        - Platform: Android
+        - Screenshot: [attach screenshot]
+
+        #### Continue Button
+        - Description: Continue registration
+        - Platform: Android
+        - Screenshot: [attach screenshot]
+      placeholder: |
+        ### Screen Name
+
+        #### Element Name
+        - Description:
+        - Platform:
+        - Screenshot:
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Additional context, expected behavior, or automation requirements.
+      placeholder: "Add any additional context here."
+
+  - type: input
+    id: requested_by
+    attributes:
+      label: Requested By
+      description: GitHub username of the QA requester.
+      placeholder: "@username"
+    validations:
+      required: true
